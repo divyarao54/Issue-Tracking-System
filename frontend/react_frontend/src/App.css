@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Special+Gothic+Expanded+One&display=swap');
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -46,15 +48,21 @@ select{
   padding: 7px;
   width: 120px;
   border-radius: 5px;
+  border: #b5b6b7 solid 1px;
 }
 
 table{
   width: 100%;
+  background: #ffffff;
+  border-spacing: 0;
 }
+
 
 input{
   padding: 7px;
   width: 200px;
+  border-radius: 5px;
+  border: #b5b6b7 solid 1px;
 }
 
 pre{
@@ -62,9 +70,6 @@ pre{
 }
 
 form{
-  /*position: absolute;
-  top: 150px;
-  left: 35%;*/
   z-index: 10;
   width: 500px;
   height: auto;
@@ -108,4 +113,38 @@ label{
   display: flex;
   align-self: flex-end;
   gap: 15px;
+}
+
+thead tr:hover{
+  background: white;
+}
+
+tr:hover{
+  background: #daf1f2;
+  border: white solid 2px;
+  border-radius: 15px;
+}
+
+th button, .pagination-numbers button{
+  background: #dae6e6;
+  color: black;
+}
+
+pre{
+  background: #ffffff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1)
+}
+
+pre p{
+  font-family: 'Montserrat', sans-serif;
+}
+
+.filters select{
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1)
+}
+
+hr{
+  color: #b5b6b7;
 }
