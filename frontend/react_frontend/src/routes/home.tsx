@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const API_BASE = "http://localhost:8000"
 
@@ -34,6 +34,7 @@ const Home: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [issuesPerPage, setIssuesPerPage] = useState(5);
     const [sortBy, setSortBy] = useState<string>('');
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchIssues();
@@ -278,13 +279,13 @@ const Home: React.FC = () => {
         <tbody>
           {issues.length > 0 ? (
             currentIssues.map(issue => (
-              <tr key={issue.id}>
+              <tr key={issue.id} onClick={() => navigate(`/${issue.id}`)} style={{cursor: 'pointer'}}>
                 <td>{issue.id}</td>
                 <td>{issue.title}</td>
                 <td>{issue.issue_status}</td>
                 <td>{issue.priority}</td>
                 <td>{issue.assignee || '-'}</td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                     <button
                     onClick={() => {
                         setShowEditForm(true);
@@ -299,7 +300,7 @@ const Home: React.FC = () => {
                     Edit
                     </button>
                 </td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                     <Link to={`/${issue.id}`}>
                         <button>View</button>
                     </Link>
@@ -308,7 +309,7 @@ const Home: React.FC = () => {
             ))
           ) : (
             <tr>
-              <td className="emptyIssueTable" colSpan={6}>No issues found</td>
+              <td className="emptyIssueTable" colSpan={7}>No issues found</td>
             </tr>
           )}
         </tbody>
