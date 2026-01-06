@@ -9,7 +9,7 @@ const API_BASE = "http://localhost:8000"
 const IssuePage = () => {
   const { issueId } = useParams<{ issueId?: string }>();
   const [issue, setIssue] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  //const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     fetchIssue();
@@ -17,7 +17,7 @@ const IssuePage = () => {
 
   const fetchIssue = async() =>{
     try{
-      setLoading(true);
+      //setLoading(true);
       const response = await axios.get(`${API_BASE}/issues/${issueId}`, {
         params: {
           issue_id: issueId
@@ -25,9 +25,9 @@ const IssuePage = () => {
       })
       console.log("fetched issue: ", response.data);
       setIssue(response.data);
-      setTimeout(() => {
+      /*setTimeout(() => {
         setLoading(false);
-      }, 1000);
+      }, 1000);*/
     }
     catch(err){
       console.log("Error fetching issue details: ", err);
@@ -35,7 +35,6 @@ const IssuePage = () => {
   }
   return (
     <>
-    {loading ? <LoadingComponent/> : (
       <div>
         <h1>Issue Details</h1>
         
@@ -45,7 +44,6 @@ const IssuePage = () => {
           {JSON.stringify(issue, null, 2)}
         </pre>
       </div>
-    )}
     </>
   )
 }

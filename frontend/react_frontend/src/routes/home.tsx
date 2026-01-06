@@ -1,410 +1,869 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import EditIcon from '../assets/edit_icon.svg?react';
 import InfoIcon from '../assets/info_icon.svg?react';
-import LoadingComponent from '../components/loading';
 
-const API_BASE = "http://localhost:8000"
+const API_BASE = "http://localhost:8000";
 
-interface Issue{
-    id: number;
-    title: string;
-    issue_description?: string;
-    issue_status: string;
-    priority: string;
-    assignee?: string;
-    created_at: string;
-    updated_at: string;
+interface Assignee {
+  id: number;
+  assignee_name: string;
+}
+
+interface Issue {
+  id: number;
+  title: string;
+  issue_description?: string;
+  issue_status: string;
+  priority: string;
+  assignee_id?: number | null;
+  assignee_name?: string | null;
+  assigned_date?: string | null;
+  verified_by?: number | null;
+  verified_by_name?: string | null;  // Add this field
+  verified_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface IssuesResponse {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  issues: Issue[];
 }
 
 const Home: React.FC = () => {
-    const [error, setError] = useState<string>('');
-    const [issues, setIssues] = useState<Issue[]>([]);
-    const [searchTitle, setSearchTitle] = useState<string>('');
-    const [status, setStatus] = useState<string>('');
-    const [priority, setPriority] = useState<string>('');
-    const [assignee, setAssignee] = useState<string>('');
-    const [assigneesList, setassigneesList] = useState<string[]>([]);
-    const [showForm, setShowForm] = useState<boolean>(false);
-    const [issueTitle, setIssueTitle] = useState<string>('');
-    const [issueDescription, setIssueDescription] = useState<string>('');
-    const [issueStatus, setIssueStatus] = useState<string>('');
-    const [issuePriority, setIssuePriority] = useState<string>('');
-    const [issueAssignee, setIssueAssignee] = useState<string>('');
-    const [issueId, setIssueId] = useState<number>();
-    const [showEditForm, setShowEditForm] = useState<boolean>(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [issuesPerPage, setIssuesPerPage] = useState(5);
-    const [sortBy, setSortBy] = useState<string>('');
-    const [loading, setLoading] = useState<boolean>(true);
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    useEffect(() => {
-        fetchIssues();
-    }, [searchTitle, status, priority, assignee, sortBy])
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [availableAssignees, setAvailableAssignees] = useState<Assignee[]>([]);
 
-    useEffect(() => {
-        fetchAssignees();
-    }, [])
+  const [search, setSearch] = useState('');
+  const [issue_status, setIssueStatus] = useState('');
+  const [priority, setPriority] = useState('');
+  const [assignee_name, setAssigneeName] = useState('');
 
-    const fetchIssues = async () => {
-        try {
-            setLoading(true);
-            const response = await axios.get(`${API_BASE}/issues`, {
-                params: {
-                    page: 1,
-                    pageSize: 1000,
-                    sort_by: sortBy || 'id',
-                    order: 'asc',
-                    search: searchTitle.trim() || undefined,
-                    status: status || undefined,
-                    priority: priority || undefined,
-                    assignee: assignee || undefined
-                }
-            });
-            console.log('Fetched issues:', response.data);
-            setIssues(response.data.issues || []);
-            setError('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
 
-            setTimeout(() => {
-                setLoading(false);
-            }, 1000);
-        } catch (err) {
-            setError('Failed to fetch issues');
-            console.error('Error fetching issues:', err);
+  const [issueId, setIssueId] = useState<number | null>(null);
+  const [issueTitle, setIssueTitle] = useState('');
+  const [issueDescription, setIssueDescription] = useState('');
+  const [issueStatusField, setIssueStatusField] = useState('open');
+  const [issuePriority, setIssuePriority] = useState('medium');
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<number | null>(null);
+  const [markVerified, setMarkVerified] = useState(false);
+  const [verifierId, setVerifierId] = useState<number | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sort_by, setSortBy] = useState('created_at');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+
+  /* ---------------- Fetch Data ---------------- */
+
+  const fetchIssues = async () => {
+    try {
+      const params = {
+        search: search || undefined,
+        issue_status: issue_status || undefined,
+        priority: priority || undefined,
+        assignee_name: assignee_name || undefined,
+        sort_by: sort_by,
+        order: order,
+        page: currentPage,
+        pageSize: pageSize
+      };
+
+      // Clean params
+      const cleanParams: Record<string, any> = {};
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) {
+          cleanParams[key] = value;
         }
-    };
+      }
 
-    const fetchAssignees = async() => {
-        try{
-            const response = await axios.get(`${API_BASE}/assignees`);
-            setassigneesList(response.data.assignees || []);
-        }
-        catch(err){
-            console.error("Error fetching assignees: ", err);
-        }
+      console.log('Fetching issues with params:', cleanParams);
+      
+      const res = await axios.get<IssuesResponse>(`${API_BASE}/issues`, {
+        params: cleanParams
+      });
+      
+      setIssues(res.data.issues || []);
+      setTotalCount(res.data.totalCount || 0);
+      setTotalPages(Math.ceil((res.data.totalCount || 0) / pageSize));
+    } catch (error) {
+      console.error('Error fetching issues:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response?.data);
+      }
     }
-    
-    const onFilterChange = () => {
-        fetchIssues();
-    };
+  };
 
-    const handleCreateFormSubmit = async(e:any) =>{
-        e.preventDefault();
-        try{
-            await axios.post(`${API_BASE}/issues`, {
-                title: issueTitle,
-                issue_description: issueDescription || null,
-                issue_status: issueStatus || "open",
-                priority: issuePriority || "medium",
-                assignee: issueAssignee || null
-            }, { headers: { 'Content-Type': 'application/json' }});
-
-            await fetchIssues();
-            setShowForm(false);
-            setIssueTitle("");
-            setIssueDescription("");
-            setIssueStatus("");
-            setIssuePriority("");
-            setIssueAssignee("");
-        }
-        catch(err){
-            console.log('Failed to add new issue: ', err);
-        }
+  const fetchAllAssignees = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/assignees`);
+      setAssignees(res.data.assignees || []);
+    } catch (error) {
+      console.error('Error fetching assignees:', error);
     }
+  };
 
-    const handleEditFormSubmit = async(e:any) => {
-        e.preventDefault();
-        try{
-            await axios.put(`${API_BASE}/issues/${issueId}`, {
-                title: issueTitle,
-                issue_description: issueDescription || null,
-                issue_status: issueStatus || "open",
-                priority: issuePriority || "medium",
-                assignee: issueAssignee || null
-            }, { headers: { 'Content-Type': 'application/json' }});
-
-            await fetchIssues();
-            setShowEditForm(false);
-            setIssueTitle("");
-            setIssueDescription("");
-            setIssueStatus("");
-            setIssuePriority("");
-            setIssueAssignee("");
-        }
-        catch(err){}
+  const fetchAvailableAssignees = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/assignees/available`);
+      setAvailableAssignees(res.data.assignees || []);
+    } catch (error) {
+      console.error('Error fetching available assignees:', error);
     }
+  };
 
-    const indexOfLastIssue = currentPage * issuesPerPage;
-    const indexOfFirstIssue = indexOfLastIssue - issuesPerPage;
+  useEffect(() => {
+    fetchIssues();
+  }, [search, issue_status, priority, assignee_name, sort_by, order, currentPage, pageSize]);
 
-    const currentIssues = issues.slice(indexOfFirstIssue, indexOfLastIssue);
+  useEffect(() => {
+    fetchAllAssignees();
+    fetchAvailableAssignees();
+  }, []);
 
-    const totalPages = Math.ceil(issues.length / issuesPerPage);
+  /* ---------------- Create Issue ---------------- */
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const issueData: any = {
+        title: issueTitle,
+        issue_description: issueDescription || null,
+        issue_status: issueStatusField,
+        priority: issuePriority,
+        assignee_id: selectedAssigneeId
+      };
+
+      // If creating with verified status, we need to use the verify endpoint
+      if (issueStatusField === 'verified' && verifierId) {
+        // First create the issue
+        const createRes = await axios.post(`${API_BASE}/issues`, {
+          ...issueData,
+          issue_status: 'resolved' // Create as resolved first
+        });
+        
+        const newIssueId = createRes.data.id;
+        
+        // Then verify it
+        await axios.post(`${API_BASE}/issues/${newIssueId}/verify`, {}, {
+          params: { verifier_id: verifierId }
+        });
+      } else {
+        // Regular create
+        await axios.post(`${API_BASE}/issues`, issueData);
+      }
+
+      setShowCreateForm(false);
+      resetCreateForm();
+      fetchIssues();
+      fetchAvailableAssignees();
+    } catch (error) {
+      console.error('Error creating issue:', error);
+      alert('Error creating issue. Please check console for details.');
+    }
+  };
+
+  const resetCreateForm = () => {
+    setIssueTitle('');
+    setIssueDescription('');
+    setIssueStatusField('open');
+    setIssuePriority('medium');
+    setSelectedAssigneeId(null);
+    setMarkVerified(false);
+    setVerifierId(null);
+  };
+
+  /* ---------------- Edit Issue ---------------- */
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const updateData: any = {
+        title: issueTitle,
+        issue_description: issueDescription || null,
+        issue_status: issueStatusField,
+        priority: issuePriority,
+        assignee_id: selectedAssigneeId
+      };
+
+      // If changing status to verified and verifier is selected
+      if (issueStatusField === 'verified') {
+        if (verifierId) {
+          // Use the verify endpoint for verification
+          await axios.post(`${API_BASE}/issues/${issueId}/verify`, {}, {
+            params: { verifier_id: verifierId }
+          });
+        } else {
+          throw new Error('Verifier is required when marking as verified');
+        }
+      } else {
+        // Regular update
+        await axios.put(`${API_BASE}/issues/${issueId}`, updateData);
+      }
+
+      setShowEditForm(false);
+      resetEditForm();
+      fetchIssues();
+      fetchAvailableAssignees();
+    } catch (error) {
+      console.error('Error updating issue:', error);
+      alert('Error updating issue. Please check console for details.');
+    }
+  };
+
+  const resetEditForm = () => {
+    setIssueId(null);
+    setIssueTitle('');
+    setIssueDescription('');
+    setIssueStatusField('open');
+    setIssuePriority('medium');
+    setSelectedAssigneeId(null);
+    setMarkVerified(false);
+    setVerifierId(null);
+  };
+
+  const openEditForm = (issue: Issue) => {
+    setShowEditForm(true);
+    setIssueId(issue.id);
+    setIssueTitle(issue.title);
+    setIssueDescription(issue.issue_description || '');
+    setIssueStatusField(issue.issue_status);
+    setIssuePriority(issue.priority);
+    setSelectedAssigneeId(issue.assignee_id || null);
+    setMarkVerified(issue.issue_status === "verified");
+    setVerifierId(issue.verified_by || null);
+  };
+
+  /* ---------------- Pagination ---------------- */
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  /* ---------------- UI ---------------- */
 
   return (
-    <>
-    {loading ? (
-        <LoadingComponent/>
-    ): (
-    <div>
-        
+    <div style={{ padding: '20px' }}>
       <h1>Issue Tracking System</h1>
-      <div className="filters">
+
+      {/* Filters */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         <input
-          type="text"
-          placeholder="Search title or description..."
-          value={searchTitle}
+          placeholder="Search titles and descriptions..."
+          value={search}
           onChange={e => {
-            setSearchTitle(e.target.value);
-            onFilterChange();
+            setSearch(e.target.value);
+            setCurrentPage(1); // Reset to first page on search
           }}
-          style={{boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)'}}
+          style={{ padding: '8px', width: '200px' }}
         />
 
-        <select
-          value={status}
+        <select 
+          value={issue_status} 
           onChange={e => {
-            setStatus(e.target.value);
-            onFilterChange();
+            setIssueStatus(e.target.value);
+            setCurrentPage(1);
           }}
+          style={{ padding: '8px' }}
         >
-          <option value="">All Statuses</option>
+          <option value="">All Status</option>
           <option value="open">Open</option>
-          <option value="in-progress">In Progress</option>
+          <option value="in_progress">In Progress</option>
           <option value="resolved">Resolved</option>
+          <option value="verified">Verified</option>
           <option value="closed">Closed</option>
         </select>
 
-        <select
-          value={priority}
+        <select 
+          value={priority} 
           onChange={e => {
             setPriority(e.target.value);
-            onFilterChange();
+            setCurrentPage(1);
           }}
+          style={{ padding: '8px' }}
         >
-          <option value="">All Priorities</option>
+          <option value="">All Priority</option>
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
           <option value="critical">Critical</option>
         </select>
 
-        <select
-            value={assignee}
-            onChange = {e => {
-                setAssignee(e.target.value);
-                onFilterChange();
-            }}
+        <select 
+          value={assignee_name} 
+          onChange={e => {
+            setAssigneeName(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{ padding: '8px' }}
         >
-            <option value="">All Assignees</option>
-            {assigneesList.map(a => (
-                <option key={a} value={a}>{a}</option>
-            ))}
-        </select>
-        
-        <select
-            value={issuesPerPage}
-            onChange = {e => {
-                setIssuesPerPage(Number(e.target.value));
-                setCurrentPage(1);
-            }}
-        >
-            <option value = {5}>5</option>
-            <option value = {10}>10</option>
-            <option value = {20}>20</option>
-            <option value = {50}>50</option>
+          <option value="">All Assignees</option>
+          {assignees.map(a => (
+            <option key={a.id} value={a.assignee_name}>
+              {a.assignee_name}
+            </option>
+          ))}
         </select>
 
-        <button onClick={() => setShowForm(true)} style={{boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)'}}>+ Create Issue</button>
-        {showForm && 
-            <div className='form-container'>
-                <h2>Create New Issue</h2>
-                <form onSubmit={handleCreateFormSubmit}>
-                    <div className='form-group'>
-                        <label>Issue title *</label>
-                        <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} required/>
-                    </div>
-                    <div className='form-group'>
-                        <label>Issue description </label>
-                        <input value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)}/>
-                    </div>
-                    <div className='form-group'>
-                        <label>Issue Status *</label>
-                        <select value={issueStatus} onChange={(e) => {setIssueStatus(e.target.value)}} style={{boxShadow: 'none'}} required>
-                            <option value="">Select status</option>
-                            <option value="open">Open</option>
-                            <option value="in-progress">In progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                        </select>
-                    </div>
-                    <div className='form-group'>
-                        <label>Issue Priority *</label>
-                        <select value={issuePriority} onChange={(e) => {setIssuePriority(e.target.value)}} style={{boxShadow: 'none'}} required>
-                            <option value="">Select priority</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                        </select>
-                    </div>
-                    <div className='form-group'>
-                        <label>Assignee</label>
-                        <input value={issueAssignee} onChange={(e) => setIssueAssignee(e.target.value)}/>
-                    </div>
-                    <div className="form-actions">
-                        <button type="button" className="cancel-btn" onClick={() => {setShowForm(false)}}>Cancel</button>
-                        <button type="submit" className="submit-btn">Submit</button>
-                    </div>
-                </form>
-            </div>
-        }
+        <select 
+          value={sort_by} 
+          onChange={e => setSortBy(e.target.value)}
+          style={{ padding: '8px' }}
+        >
+          <option value="id">Sort by ID</option>
+          <option value="created_at">Sort by Created Date</option>
+          <option value="updated_at">Sort by Updated Date</option>
+          <option value="priority">Sort by Priority</option>
+          <option value="issue_status">Sort by Status</option>
+          <option value="title">Sort by Title</option>
+        </select>
+
+        <select 
+          value={order} 
+          onChange={e => setOrder(e.target.value as 'asc' | 'desc')}
+          style={{ padding: '8px' }}
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
+
+        <select 
+          value={pageSize} 
+          onChange={e => {
+            setPageSize(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+          style={{ padding: '8px' }}
+        >
+          <option value="5">5 per page</option>
+          <option value="10">10 per page</option>
+          <option value="20">20 per page</option>
+          <option value="50">50 per page</option>
+        </select>
+
+        <button 
+          onClick={() => setShowCreateForm(true)}
+          style={{ 
+            padding: '8px 16px', 
+            backgroundColor: '#007bff', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          + Create Issue
+        </button>
       </div>
-      
-      {error && <p className='error-msg'>{error}</p>}
-      <div style={{background: '#ffffff', padding: '15px', border: '#b5c6c7 solid 1px', borderRadius: '15px', boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)', margin: '15px' }}>
-        <table>
-            <thead>
-            <tr>
-                <th>ID <button onClick={
-                    () => {
-                        setSortBy('id');
-                    }
-                } style={{cursor: 'pointer'}}>↓</button></th>
-                <th>Title</th>
-                <th>Status <button onClick={
-                    ()=>{
-                        setSortBy('issue_status');
-                    }
-                } style={{cursor: 'pointer'}}>↓</button></th>
-                <th>Priority <button  onClick={
-                    () => {
-                        setSortBy('priority');
-                    }
-                } style={{cursor: 'pointer'}}>↓</button></th>
-                <th>Assignee <button  onClick={
-                    () => {
-                        setSortBy('assignee');
-                    }
-                } style={{cursor: 'pointer'}}>↓</button></th>
-                <th colSpan={2}>↓ actions</th>
+
+      {/* Issues Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f2f2f2' }}>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>ID</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Title</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Priority</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Assignee</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Verified By</th>
+            <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Created</th>
+            <th colSpan={2} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {issues.map(issue => (
+            <tr 
+              key={issue.id} 
+              onClick={() => navigate(`/${issue.id}`)}
+              style={{ cursor: 'pointer', borderBottom: '1px solid #ddd' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <td style={{ padding: '10px' }}>{issue.id}</td>
+              <td style={{ padding: '10px' }}>{issue.title}</td>
+              <td style={{ padding: '10px' }}>
+                <span style={{
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  backgroundColor: 
+                    issue.issue_status === 'open' ? '#ffc107' :
+                    issue.issue_status === 'in_progress' ? '#17a2b8' :
+                    issue.issue_status === 'resolved' ? '#28a745' :
+                    issue.issue_status === 'verified' ? '#6f42c1' :
+                    '#dc3545',
+                  color: 'white'
+                }}>
+                  {issue.issue_status}
+                </span>
+                {issue.verified_at && (
+                  <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
+                    Verified: {new Date(issue.verified_at).toLocaleDateString()}
+                  </div>
+                )}
+              </td>
+              <td style={{ padding: '10px' }}>
+                <span style={{
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  backgroundColor: 
+                    issue.priority === 'low' ? '#28a745' :
+                    issue.priority === 'medium' ? '#ffc107' :
+                    issue.priority === 'high' ? '#fd7e14' :
+                    '#dc3545',
+                  color: 'white'
+                }}>
+                  {issue.priority}
+                </span>
+              </td>
+              <td style={{ padding: '10px' }}>{issue.assignee_name || '-'}</td>
+              <td style={{ padding: '10px' }}>
+                {issue.verified_by_name || '-'}
+                {issue.verified_by_name && issue.verified_by && (
+                  <div style={{ fontSize: '11px', color: '#6c757d' }}>
+                    ID: {issue.verified_by}
+                  </div>
+                )}
+              </td>
+              <td style={{ padding: '10px' }}>
+                {new Date(issue.created_at).toLocaleDateString()}
+              </td>
+              <td style={{ padding: '10px' }}>
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    openEditForm(issue);
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <EditIcon /> Edit
+                </button>
+              </td>
+              <td style={{ padding: '10px' }}>
+                <Link to={`/${issue.id}`} style={{ textDecoration: 'none' }}>
+                  <button style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#17a2b8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <InfoIcon /> View
+                  </button>
+                </Link>
+              </td>
             </tr>
-            </thead>
-            <tbody>
-            {issues.length > 0 ? (
-                currentIssues.map(issue => (
-                <tr key={issue.id} onClick={() => navigate(`/${issue.id}`)} style={{cursor: 'pointer', border: 'white solid 2px', borderRadius:'15px'}}>
-                    <td>{issue.id}</td>
-                    <td>{issue.title}</td>
-                    <td>{issue.issue_status}</td>
-                    <td>{issue.priority}</td>
-                    <td>{issue.assignee || '-'}</td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                        onClick={() => {
-                            setShowEditForm(true);
-                            setIssueId(issue.id);
-                            setIssueTitle(issue.title);
-                            setIssueDescription(issue.issue_description || "");
-                            setIssueStatus(issue.issue_status);
-                            setIssuePriority(issue.priority);
-                            setIssueAssignee(issue.assignee || "");
-                        }}
-                        >
-                        <EditIcon style={{ width: '16px', height: '16px', verticalAlign: 'middle', paddingBottom: '4px' }} fill='white'/> Edit
-                        </button>
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                        <Link to={`/${issue.id}`}>
-                            <button>
-                                <InfoIcon style={{ width: '16px', height: '16px', verticalAlign: 'middle', paddingBottom: '4px'}} fill='white' /> View
-                            </button>
-                        </Link>
-                    </td>
-                </tr>
-                ))
-            ) : (
-                <tr>
-                <td className="emptyIssueTable" colSpan={7}>No issues found</td>
-                </tr>
-            )}
-            </tbody>
-        </table>
-      </div>
-      <div className = "pagination">
-        <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} style={{boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)'}}>
-            Prev
-        </button>
-        <span>Page {currentPage} of {totalPages}</span>
-        <button onClick={() => setCurrentPage((prev) => Math.min(prev+1, totalPages))} disabled={currentPage === totalPages} style={{boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)'}}>
-            Next
-        </button>
-      </div>
-      <div className='pagination-numbers'>
-        {Array.from({length: totalPages}, (_, i)=>(
-            <button key={i} className={currentPage === i + 1? "active": ""} onClick={() => setCurrentPage(i+1)} style={{boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.1)'}}>
-                {i + 1}
-            </button>
-        ))}
-      </div>
-      {showEditForm && 
-        <div className='form-container'>
-            <h2>Edit Issue</h2>
-            <form onSubmit={handleEditFormSubmit}>
-                <div className='form-group'>
-                    <label>Issue title *</label>
-                    <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} required/>
-                </div>
-                <div className='form-group'>
-                    <label>Issue description</label>
-                    <input value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)}/>
-                </div>
-                <div className='form-group'>
-                    <label>Issue Status *</label>
-                    <select value={issueStatus} onChange={(e) => {setIssueStatus(e.target.value)}} required>
-                        <option value="">Select status</option>
-                        <option value="open">Open</option>
-                        <option value="in-progress">In progress</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </div>
-                <div className='form-group'>
-                    <label>Issue Priority *</label>
-                        <select value={issuePriority} onChange={(e) => {setIssuePriority(e.target.value)}} required>
-                        <option value="">Select priority</option>
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                    </select>
-                </div>
-                <div className='form-group'>
-                    <label>Assignee</label>
-                    <input value={issueAssignee} onChange={(e) => setIssueAssignee(e.target.value)}/>
-                </div>
-                <div className="form-actions">
-                    <button type="button" className="cancel-btn" onClick={() => {
-                        setShowEditForm(false);
-                        setIssueId(undefined);
-                        setIssueTitle("");
-                        setIssueDescription("");
-                        setIssueStatus("");
-                        setIssuePriority("");
-                        setIssueAssignee("");
-                        }}
-                    >Cancel</button>
-                    <button type="submit" className="submit-btn">Submit</button>
-                </div>
-            </form>
-        </div>
-      }
-    </div>
-    )}
-    </>
-  )
-}
+          ))}
+        </tbody>
+      </table>
 
-export default Home
+      {issues.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>
+          No issues found. Try adjusting your filters or create a new issue.
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          Showing {issues.length} of {totalCount} issues
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button 
+            disabled={currentPage === 1} 
+            onClick={() => handlePageChange(currentPage - 1)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: currentPage === 1 ? '#e9ecef' : '#007bff',
+              color: currentPage === 1 ? '#6c757d' : 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Prev
+          </button>
+          <span>Page {currentPage} of {totalPages}</span>
+          <button 
+            disabled={currentPage === totalPages} 
+            onClick={() => handlePageChange(currentPage + 1)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: currentPage === totalPages ? '#e9ecef' : '#007bff',
+              color: currentPage === totalPages ? '#6c757d' : 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      {/* Create Form Modal */}
+      {showCreateForm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            width: '500px',
+            maxWidth: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <h2>Create New Issue</h2>
+            <form onSubmit={handleCreateSubmit}>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Title *
+                </label>
+                <input
+                  required
+                  value={issueTitle}
+                  onChange={e => setIssueTitle(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Description
+                </label>
+                <textarea
+                  value={issueDescription}
+                  onChange={e => setIssueDescription(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '100px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Status *
+                </label>
+                <select
+                  value={issueStatusField}
+                  onChange={e => {
+                    setIssueStatusField(e.target.value);
+                    if (e.target.value === 'verified') {
+                      setMarkVerified(true);
+                    } else {
+                      setMarkVerified(false);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="verified">Verified</option>
+                  <option value="closed">Closed</option>
+                </select>
+                {issueStatusField === 'verified' && (
+                  <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
+                    Note: Verified issues require a verifier
+                  </div>
+                )}
+              </div>
+
+              {issueStatusField === 'verified' && (
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                    Verifier *
+                  </label>
+                  <select
+                    value={verifierId ?? ''}
+                    onChange={e => setVerifierId(e.target.value ? Number(e.target.value) : null)}
+                    required
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  >
+                    <option value="">Select Verifier</option>
+                    {assignees.map(a => (
+                      <option key={a.id} value={a.id}>{a.assignee_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Priority *
+                </label>
+                <select
+                  value={issuePriority}
+                  onChange={e => setIssuePriority(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Assignee
+                </label>
+                <select
+                  value={selectedAssigneeId ?? ''}
+                  onChange={e => setSelectedAssigneeId(e.target.value ? Number(e.target.value) : null)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">Auto Assign (Available Today)</option>
+                  {availableAssignees.map(a => (
+                    <option key={a.id} value={a.id}>{a.assignee_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    resetCreateForm();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Create Issue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Form Modal */}
+      {showEditForm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            width: '500px',
+            maxWidth: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <h2>Edit Issue #{issueId}</h2>
+            <form onSubmit={handleEditSubmit}>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Title *
+                </label>
+                <input
+                  required
+                  value={issueTitle}
+                  onChange={e => setIssueTitle(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Description
+                </label>
+                <textarea
+                  value={issueDescription}
+                  onChange={e => setIssueDescription(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '100px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Status *
+                </label>
+                <select
+                  value={issueStatusField}
+                  onChange={e => {
+                    setIssueStatusField(e.target.value);
+                    if (e.target.value === 'verified') {
+                      setMarkVerified(true);
+                    } else {
+                      setMarkVerified(false);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="verified">Verified</option>
+                  <option value="closed">Closed</option>
+                </select>
+                {issueStatusField === 'verified' && (
+                  <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
+                    Note: Verified issues require a verifier
+                  </div>
+                )}
+              </div>
+
+              {issueStatusField === 'verified' && (
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                    Verifier *
+                  </label>
+                  <select
+                    value={verifierId ?? ''}
+                    onChange={e => setVerifierId(e.target.value ? Number(e.target.value) : null)}
+                    required
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  >
+                    <option value="">Select Verifier</option>
+                    {assignees.map(a => (
+                      <option key={a.id} value={a.id}>{a.assignee_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Priority *
+                </label>
+                <select
+                  value={issuePriority}
+                  onChange={e => setIssuePriority(e.target.value)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Assignee
+                </label>
+                <select
+                  value={selectedAssigneeId ?? ''}
+                  onChange={e => setSelectedAssigneeId(e.target.value ? Number(e.target.value) : null)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">No Assignee</option>
+                  {assignees.map(a => (
+                    <option key={a.id} value={a.id}>{a.assignee_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditForm(false);
+                    resetEditForm();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Update Issue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Home;
