@@ -598,7 +598,7 @@ const Home: React.FC = () => {
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                 >
                   <option value="open">Open</option>
-                  <option value="in_progress">In Progress</option>
+                  <option value="in-progress">In Progress</option>
                   <option value="resolved">Resolved</option>
                   <option value="verified">Verified</option>
                   <option value="closed">Closed</option>
@@ -763,7 +763,7 @@ const Home: React.FC = () => {
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                 >
                   <option value="open">Open</option>
-                  <option value="in_progress">In Progress</option>
+                  <option value="in-progress">In Progress</option>
                   <option value="resolved">Resolved</option>
                   <option value="verified">Verified</option>
                   <option value="closed">Closed</option>

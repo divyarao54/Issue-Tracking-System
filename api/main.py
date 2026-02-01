@@ -37,7 +37,7 @@ def get_db():
 class IssueStatus(str, Enum):
     open = "open"
     closed = "closed"
-    in_progress = "in_progress"
+    in_progress = "in-progress"
     resolved = "resolved"
     verified = "verified"
 
